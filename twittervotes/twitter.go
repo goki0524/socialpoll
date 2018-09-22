@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bitly/go-nsq"
+
 	"github.com/garyburd/go-oauth/oauth"
 	"github.com/joeshaw/envdecode"
 )
@@ -154,4 +156,19 @@ func startTwitterStream(stopchan <-chan struct{}, votes chan<- string) <-chan st
 		}
 	}()
 	return stoppedchan
+}
+
+func publishVotes(votes <-chan string) <-chan struct{} {
+	stopchan := make(chan struct{}, 1)
+	pub, _ := nsq.NewProducer("localhost:4150", nsq.NewConfig())
+	go func() {
+		for vote := range votes {
+			pub.Publish("votes", []byte(vote)) // 投稿内容をパブリッシュします
+		}
+		log.Println("Pablisher: 停止中です")
+		pub.Stop()
+		log.Println("Publisher: 停止しました")
+		stopchan <- struct{}{}
+	}()
+	return stopchan
 }
